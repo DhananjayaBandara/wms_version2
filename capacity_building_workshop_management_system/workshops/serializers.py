@@ -18,6 +18,9 @@ class SessionSerializer(serializers.ModelSerializer):
     trainers = serializers.SerializerMethodField()
     token = serializers.UUIDField(read_only=True)
     materials = SessionMaterialSerializer(many=True, read_only=True)
+    status = serializers.CharField(read_only=True)
+    date = serializers.DateField()
+    time = serializers.TimeField()
     
     formatted_date = serializers.SerializerMethodField()
     formatted_time = serializers.SerializerMethodField()
@@ -25,7 +28,7 @@ class SessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Session
         fields = [
-            'id', 'workshop', 'workshop_id', 'date', 'time', 'formatted_date', 'formatted_time','status',
+            'id', 'workshop', 'workshop_id', 'date', 'time', 'formatted_date', 'formatted_time','status',  
             'location', 'target_audience', 'trainers', 'token','materials'
         ]
 

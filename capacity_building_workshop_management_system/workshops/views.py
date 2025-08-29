@@ -59,10 +59,11 @@ def get_workshop_details(request, workshop_id):
             "sessions": [
                 {
                     "id": session.id,
-                    "date_time": session.date_time,
+                    "date": session.date,
+                    "time": session.time,
                     "location": session.location,
                     "target_audience": session.target_audience,
-                    "registration_deadline": session.registration_deadline,
+                    "status": session.status,
                 }
                 for session in sessions
             ],
@@ -88,7 +89,7 @@ def update_workshop(request, workshop_id):
     """
     Updates the workshop with the given ID.
     """
-    workshop = get_object_or_404(Workshop, id=workshop_id)
+    workshop = Workshop.objects.get(id=workshop_id)
     serializer = WorkshopSerializer(workshop, data=request.data)
     if serializer.is_valid():
         serializer.save()
@@ -100,7 +101,7 @@ def delete_workshop(request, workshop_id):
     """
     Deletes the workshop with the given ID.
     """
-    workshop = get_object_or_404(Workshop, id=workshop_id)
+    workshop = Workshop.objects.get(id=workshop_id)
     workshop.delete()
     return Response({"message": "Workshop deleted successfully."}, status=status.HTTP_200_OK)
 
@@ -126,6 +127,7 @@ def get_sessions_by_workshop(request, workshop_id):
     serializer = SessionSerializer(sessions, many=True)
     return Response(serializer.data)
 
+
 @api_view(['POST'])
 def get_sessions_by_ids(request):
     """
@@ -134,6 +136,15 @@ def get_sessions_by_ids(request):
     ids = request.data.get('ids', [])
     sessions = Session.objects.filter(id__in=ids)
     serializer = SessionSerializer(sessions, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def get_session_by_id(request, session_id):
+    """
+    Returns the session with the given ID.
+    """
+    session = Session.objects.get(id=session_id)
+    serializer = SessionSerializer(session)
     return Response(serializer.data)
 
 @api_view(['POST'])
@@ -148,7 +159,7 @@ def create_session(request):
         template, _ = NotificationTemplate.objects.get_or_create(
             title="New Session Added",
             message=f"A new session '{session}' has been added.",
-            url=f"/sessions/{session.id}/",
+            url=f"/workshops/sessions/{session.id}/",
             notification_type="session"
         )
         # Notify all participants
@@ -165,7 +176,7 @@ def update_session(request, session_id):
     """
     Updates the session with the given ID.
     """
-    session = get_object_or_404(Session, id=session_id)
+    session = Session.objects.get(id=session_id)
     serializer = SessionSerializer(session, data=request.data)
     if serializer.is_valid():
         serializer.save()
@@ -177,7 +188,7 @@ def delete_session(request, session_id):
     """
     Deletes the session with the given ID.
     """
-    session = get_object_or_404(Session, id=session_id)
+    session = Session.objects.get(id=session_id)
     session.delete()
     return Response({"message": "Session deleted successfully."}, status=status.HTTP_200_OK)
 

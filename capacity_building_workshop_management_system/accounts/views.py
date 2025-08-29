@@ -74,8 +74,8 @@ def participant_profile(request, user_id):
 
     all_sessions = Session.objects.all()
     registered_sessions= all_sessions.filter(id__in=registered_session_ids)
-    upcoming_sessions = all_sessions.filter(date_time__gt=now)
-    past_sessions = all_sessions.filter(date_time__lte=now)
+    upcoming_sessions = all_sessions.filter(date__gt=now)
+    past_sessions = all_sessions.filter(date__lte=now)
 
     registered_upcoming = upcoming_sessions.filter(id__in=registered_session_ids)
     unregistered_upcoming = upcoming_sessions.exclude(id__in=registered_session_ids)
@@ -84,7 +84,7 @@ def participant_profile(request, user_id):
 
     # Feedback needed: past sessions where registered, attended, but no feedback
     feedback_needed = []
-    for reg in registrations.filter(session__date_time__lte=now):
+    for reg in registrations.filter(session__date__lte=now):
         if not reg.attendance:
             continue
         # Get all feedback questions for this session
@@ -97,7 +97,8 @@ def participant_profile(request, user_id):
             {
                 'id': s.id,
                 'title': str(s),
-                'date_time': s.date_time.isoformat(),
+                'date': s.date.isoformat(),
+                'time': s.time.isoformat(),
                 'location': getattr(s, 'location', ''),
             }
             for s in qs

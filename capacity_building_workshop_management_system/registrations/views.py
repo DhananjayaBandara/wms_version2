@@ -7,6 +7,10 @@ from .models import Registration
 from .serializers import RegistrationSerializer
 from workshops.models import Session
 from users.models import Participant
+from workshops.serializers import SessionSerializer
+from feedback.models import FeedbackResponse
+from feedback.serializers import FeedbackResponseSerializer
+from materials.serializers import SessionMaterialSerializer
 
 @api_view(['POST'])
 def register_for_session(request):
@@ -167,7 +171,7 @@ def participant_registered_sessions(request, participant_id):
     """Return all sessions the participant has registered for (without materials field)."""
     registrations = Registration.objects.filter(participant_id=participant_id)
     sessions = Session.objects.filter(id__in=registrations.values_list('session_id', flat=True))
-    serializer = SessionNoMaterialsSerializer(sessions, many=True)
+    serializer = SessionSerializer(sessions, many=True)
     return Response(serializer.data)
 @api_view(['GET'])
 def participant_attended_sessions(request, participant_id):

@@ -1,10 +1,16 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from workshops.models import Session
+from workshops.models import Session, Workshop
 from registrations.models import Registration
-from feedback.models import FeedbackResponse
+from assignments.models import TrainerSession
+from feedback.models import FeedbackResponse, FeedbackQuestion
 from trainers.models import Trainer
+from users.models import Participant
+from user_types.models import ParticipantType
 from .serializers import TrainerDashboardSerializer
+from collections import Counter
+from datetime import datetime, timedelta
+
 
 @api_view(['GET'])
 def trainer_dashboard(request, trainer_id=None):
@@ -173,7 +179,6 @@ def analytics_participants(request):
         "average_completion_rate": average_completion_rate,
     })
 
-from collections import Counter
 
 @api_view(['GET'])
 def analytics_sessions_overview(request):
@@ -203,7 +208,6 @@ def analytics_sessions_overview(request):
     feedback_texts = []
 
     # --- Count distinct participants who submitted feedback ---
-    from .models import FeedbackResponse
     feedback_participant_ids = set(
         FeedbackResponse.objects.values_list('participant_id', flat=True).distinct()
     )
@@ -258,9 +262,9 @@ def analytics_sessions_overview(request):
 def analytics_sessions_list(request):
     """
     Returns a list of sessions with:
-    - id, title, workshop, date_time, registered_count, attended_count, avg_feedback_rating
+    - id, title, workshop, date, time, registered_count, attended_count, avg_feedback_rating
     """
-    sessions = Session.objects.select_related('workshop').all().order_by('-date_time')
+    sessions = Session.objects.select_related('workshop').all().order_by('-date')
     data = []
     for session in sessions:
         regs = Registration.objects.filter(session=session)
@@ -280,7 +284,8 @@ def analytics_sessions_list(request):
             "title": str(session),
             "location": session.location,
             "workshop": session.workshop.title if session.workshop else "",
-            "date_time": session.date_time,
+            "date": session.date,
+            "time": session.time,
             "registered_count": reg_count,
             "attended_count": att_count,
             "avg_feedback_rating": avg_feedback_rating,
@@ -297,7 +302,7 @@ def analytics_session_detail(request, session_id):
     - feedback rating distribution
     - feedback summary (top suggestions/problems, recommendations)
     """
-    session = get_object_or_404(Session, id=session_id)
+    session = Session.objects.get(id=session_id)
     regs = Registration.objects.filter(session=session).select_related('participant')
     reg_count = regs.count()
     att_count = regs.filter(attendance=True).count()
@@ -343,7 +348,8 @@ def analytics_session_detail(request, session_id):
         "session_id": session.id,
         "title": str(session),
         "workshop": session.workshop.title if session.workshop else "",
-        "date_time": session.date_time,
+        "date": session.date,
+        "time": session.time,
         "location": session.location,
         "registered_count": reg_count,
         "attended_count": att_count,
@@ -475,11 +481,11 @@ def analytics_workshop_detail(request, workshop_id):
     """
     from collections import Counter
 
-    workshop = get_object_or_404(Workshop, id=workshop_id)
-    sessions = Session.objects.filter(workshop=workshop).order_by('date_time')
+    workshop = Workshop.objects.get(id=workshop_id)
+    sessions = Session.objects.filter(workshop=workshop).order_by('date')
     session_ids = list(sessions.values_list('id', flat=True))
     session_titles = [str(s) for s in sessions]
-    session_dates = [s.date_time for s in sessions]
+    session_dates = [s.date for s in sessions]
 
     # --- Calculate total registered and attended ---
     regs = Registration.objects.filter(session_id__in=session_ids)
@@ -521,7 +527,8 @@ def analytics_workshop_detail(request, workshop_id):
         trend.append({
             "session_id": s.id,
             "title": str(s),
-            "date_time": s.date_time,
+            "date": s.date,
+            "time": s.time,
             "registered": s_reg_count,
             "attended": s_att_count,
             "avg_rating": avg_rating,
@@ -620,7 +627,7 @@ def analytics_trainer_detail(request, trainer_id):
     - ratings_trend: [{session_title, date_time, avg_rating}]
     - feedback_themes: top keywords from feedback
     """
-    trainer = get_object_or_404(Trainer, id=trainer_id)
+    trainer = Trainer.objects.get(id=trainer_id)
     trainer_sessions = TrainerSession.objects.filter(trainer=trainer).select_related('session')
     session_count = trainer_sessions.count()
     ratings_trend = []
@@ -645,7 +652,8 @@ def analytics_trainer_detail(request, trainer_id):
         avg_rating = round(sum(ratings) / len(ratings), 2) if ratings else None
         ratings_trend.append({
             "session_title": str(session),
-            "date_time": session.date_time,
+            "date": session.date,
+            "time": session.time,
             "avg_rating": avg_rating,
         })
         # Text feedback for this session
@@ -815,15 +823,21 @@ def sessions_report_overview(request):
         end = now.replace(month=12, day=31, hour=23, minute=59, second=59, microsecond=999999)
     else:  # custom
         if date_from:
-            start = datetime.combine(parse_date(date_from), datetime.min.time())
+            if isinstance(date_from, str):
+                from django.utils.dateparse import parse_date as django_parse_date
+                date_from = django_parse_date(date_from)
+            start = datetime.combine(date_from, datetime.min.time())
         else:
-            start = Session.objects.earliest('date_time').date_time if Session.objects.exists() else now
+            start = Session.objects.earliest('date').date if Session.objects.exists() else now
         if date_to:
-            end = datetime.combine(parse_date(date_to), datetime.max.time())
+            if isinstance(date_to, str):
+                from django.utils.dateparse import parse_date as django_parse_date
+                date_to = django_parse_date(date_to)
+            end = datetime.combine(date_to, datetime.max.time())
         else:
             end = now
 
-    sessions = Session.objects.filter(date_time__range=(start, end))
+    sessions = Session.objects.filter(date__range=(start, end))
     session_ids = list(sessions.values_list('id', flat=True))
     total_sessions = sessions.count()
 
@@ -860,7 +874,7 @@ def sessions_report_overview(request):
     # Optionally, add per-day or per-session breakdowns
     daily_breakdown = {}
     for session in sessions:
-        day = session.date_time.date().isoformat()
+        day = session.date.isoformat()
         daily_breakdown.setdefault(day, {"sessions": 0, "registered": 0, "attended": 0, "feedback": 0})
         daily_breakdown[day]["sessions"] += 1
         regs_s = regs.filter(session=session)

@@ -54,7 +54,8 @@ def participant_sessions_info(request, participant_id):
         session_info = {
             "id": session.id,
             "workshop_title": session.workshop.title if session.workshop else "",
-            "date_time": session.date_time,
+            "date": session.date,
+            "time": session.time,
             "attended": reg.attendance,
         }
         sessions.append(session_info)

@@ -1,6 +1,4 @@
 from rest_framework import serializers
-from workshops.models import Session
-
 class TrainerDashboardSerializer(serializers.Serializer):
     session_id = serializers.IntegerField()
     session_title = serializers.CharField()

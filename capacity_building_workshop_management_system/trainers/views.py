@@ -2,6 +2,11 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import TrainerCredential
 from .serializers import TrainerCredentialSerializer
+from .models import Trainer
+from .serializers import TrainerSerializer
+from rest_framework import status
+from django.shortcuts import get_object_or_404
+from assignments.models import TrainerSession
 
 @api_view(['GET'])
 def list_trainers(request):
@@ -59,7 +64,8 @@ def get_trainer_details(request, trainer_id):
                 "session_id": session.session.id,
                 "session_title": str(session.session),
                 "workshop_title": session.session.workshop.title,
-                "date_time": session.session.date_time,
+                "date": session.session.date,
+                "time": session.session.time,
                 "location": session.session.location,
             }
             for session in sessions
